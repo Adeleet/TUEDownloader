@@ -9,9 +9,10 @@ def detect_crop(filepath):
     # The reason we can't just use the video's dimensions, is that a lot of lectures will use
     # 4:3 slides on a 16:9 stream, leaving black bars all over the place
 
-    # FFMPEG uses stderr to print the revevant info
+    # FFMPEG uses stderr to print the relevant info
 
-    throwaway_file = tempfile.NamedTemporaryFile()
+    throwaway_file = tempfile.NamedTemporaryFile(delete=False)
+    print("Filepath:", throwaway_file.name)
 
     _, std_err_dump = ffmpeg.input(
                 filepath, ss=1
@@ -25,7 +26,7 @@ def detect_crop(filepath):
                 capture_stderr=True
             )
 
-
+    throwaway_file.close()
     # We're looking for the last occurrence of "crop=720:528:120:6"
     crop_strings = re.findall(b"crop=\d+:\d+:\d+:\d+", std_err_dump)
     if len(crop_strings) > 0:
