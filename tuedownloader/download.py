@@ -319,37 +319,27 @@ class TUEDownloader(object):
         saml_request = self.saml_inbetween_page(saml_resp.text)
         channel_resp = self.do_saml_response(saml_request.text)
 
-        getchannel_soup = BeautifulSoup(channel_resp.text, 'html.parser')
-        channel_title = getchannel_soup.title.text
+        get_channel_soup = BeautifulSoup(channel_resp.text, 'html.parser')
+        channel_title = get_channel_soup.title.text
         print('Channel: {}'.format(channel_title))
 
-        channel_app_info_s = channel_resp.text.find('Application.set(\'data\'')
+        def parse_channel_data_entry(channel_data_str:str, entry:str) -> str:
+            """
+            Search for entry in channel data string and return its value
+            :param channel_data_str: raw text response of 'channel_url' GET request
+            :param entry: entry to look for (e.g. '"ChannelId"')
+            :return: value of entry in the channel data string
+            """
+            matches = [line for line in channel_data_str.split("\n") if f"'{entry}': " in line]
+            if len(matches) == 0:
+                raise TUEDownloaderException(f"Found no entry {entry} in channel data")
+            match = matches[0].split(",")[0] # get (1st) match and remove trailing comma
+            value = match.split(":")[1].replace("'","").strip() # trim & remove quotation marks
+            return value
 
-        showcase_id_s = channel_resp.text.find(
-                    '\'ShowcaseId\':', channel_app_info_s
-                )
-        showcase_id_s = channel_resp.text.find(
-                    '\'',
-                    showcase_id_s + len('\'ShowcaseId\':')
-                ) + 1
-        showcase_id_e = channel_resp.text.find('\'', showcase_id_s)
-        showcase_id = channel_resp.text[showcase_id_s:showcase_id_e]
-
-        sfapikey_s = channel_resp.text.find('\'ApiKey\':', channel_app_info_s)
-        sfapikey_s = channel_resp.text.find(
-                    '\'',
-                    sfapikey_s + len('\'ApiKey\':')
-                ) + 1
-        sfapikey_e = channel_resp.text.find('\'', sfapikey_s)
-        sfapikey = channel_resp.text[sfapikey_s:sfapikey_e]
-
-        channel_id_s = channel_resp.text.find('\'ChannelId\':', channel_app_info_s)
-        channel_id_s = channel_resp.text.find(
-                    '\'',
-                    channel_id_s + len('\'ChannelId\':')
-                ) + 1
-        channel_id_e = channel_resp.text.find('\'', channel_id_s)
-        channel_id = channel_resp.text[channel_id_s:channel_id_e]
+        channel_id = parse_channel_data_entry(channel_resp.text,"ChannelId")
+        showcase_id = parse_channel_data_entry(channel_resp.text,"ShowcaseId")
+        sfapikey = parse_channel_data_entry(channel_resp.text,"ApiKey")
 
         headers = {
             'User-Agent': self.user_agent,
@@ -377,11 +367,8 @@ class TUEDownloader(object):
         )
 
         # # channel id is in url (eb....4d)
-        channel_json_resp = self.session.get(
-                'https://videocollege.tue.nl/Mediasite/api/v1/ShowcaseChannels(%27{}%27)/Presentations'.format(
-                    channel_id),
-                headers=headers,
-                params=params)
+        channel_json_url = 'https://videocollege.tue.nl/Mediasite/api/v1/ShowcaseChannels(%27{}%27)/Presentations'.format(channel_id)
+        channel_json_resp = self.session.get(channel_json_url, headers=headers, params=params)
 
         # Make directory
         this_channel_root = os.path.join(
